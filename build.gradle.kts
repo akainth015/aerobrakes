@@ -3,7 +3,7 @@ import me.akainth.tape.GenerateDimensionsTask
 plugins {
     kotlin("jvm") version "1.4.21"
     application
-    id("me.akainth.tape") version "1.2.1"
+    id("me.akainth.tape") version "1.2.4"
 }
 
 group = "me.akainth"
