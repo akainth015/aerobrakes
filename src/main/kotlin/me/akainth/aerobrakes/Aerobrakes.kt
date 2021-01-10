@@ -108,11 +108,13 @@ class Aerobrakes : AbstractSimulationListener() {
 
         val stagnationCd = BarrowmanCalculator.calculateStagnationCD(conditions.mach)
 
-        val refArea = motorPosition / SAFEST_POSITION * FIN_AREA.metersMeters
+        val refArea = motorPosition / SAFEST_POSITION * FIN_AREA.metersMeters * 2 // because there are 2 fins
 
-        val cd = refArea / conditions.refArea
+//        val cd = refArea / conditions.refArea
 
-        forces.caxial += cd * stagnationCd * refArea
+        val cd = 1.28 // sourced from Professor Pascale
+
+        forces.caxial += cd * stagnationCd * refArea / conditions.refArea
 
         return forces
     }
@@ -151,12 +153,12 @@ class Aerobrakes : AbstractSimulationListener() {
         /**
          * The wetted surface area of the fins
          */
-        val FIN_AREA = 0.018.metersMeters
+        val FIN_AREA = 6.94.inchesInches
 
         // PID gains
-        const val kP = 1
+        const val kP = 0.34
         const val kI = 0
-        const val kD = 0
+        const val kD = 5
 
         /**
          * Learning rate for gradient descent polynomial regression
