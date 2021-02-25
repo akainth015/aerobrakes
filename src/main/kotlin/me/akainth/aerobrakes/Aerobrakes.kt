@@ -8,13 +8,17 @@ import net.sf.openrocket.aerodynamics.BarrowmanCalculator
 import net.sf.openrocket.aerodynamics.FlightConditions
 import net.sf.openrocket.simulation.FlightDataType
 import net.sf.openrocket.simulation.SimulationStatus
+import net.sf.openrocket.simulation.exception.SimulationException
 import net.sf.openrocket.simulation.listeners.AbstractSimulationListener
+import java.io.File
+import java.lang.Math.random
 import kotlin.math.pow
 
+@Suppress("unused")
 class Aerobrakes : AbstractSimulationListener() {
-    private var a = -51.0
-    private var b = 330.0
-    private var c = -420.0
+    private var a = -49.4174651698608
+    private var b = 331.379008606358
+    private var c = -419.277927705465
 
     private var errorIntegral = 0.0
     private var lastError: Double = 0.0
@@ -27,14 +31,32 @@ class Aerobrakes : AbstractSimulationListener() {
         return a * x.pow(1.5) + b * x + c
     }
 
+    private val logFile = File("${System.getProperty("user.home")}/Documents/noFinsADAS1:.csv").let {
+        it.createNewFile()
+        it.printWriter()
+    }
+
+    override fun startSimulation(status: SimulationStatus) {
+//        logFile.println("Time, Altitude, , ")
+    }
+
+    override fun endSimulation(status: SimulationStatus, exception: SimulationException?) {
+        logFile.close()
+    }
+
+    private var logFrame = true
+
     override fun postAerodynamicCalculation(status: SimulationStatus, forces: AerodynamicForces): AerodynamicForces {
-        if (status.simulationTime < DEPLOYMENT_DELAY.seconds) {
+        if (status.simulationTime < (DEPLOYMENT_DELAY - SCAN_WIDTH).seconds || status.simulationTime == lastTime) {
+            lastTime = status.simulationTime
             return forces
         }
         // Filter data to only include data from after deployment that is from within SCAN_WIDTH seconds
         val (times, altitudes) = status.flightData.get(FlightDataType.TYPE_TIME)
             .map { it.seconds }
-            .zip(status.flightData.get(FlightDataType.TYPE_ALTITUDE)?.map { it.meters } ?: return forces)
+            .zip(status.flightData.get(FlightDataType.TYPE_ALTITUDE)?.map {
+                it.meters + (5 * random() - 2.5).meters
+            } ?: return forces)
             .takeLastWhile { (T, _) ->
                 T.seconds >= status.simulationTime - SCAN_WIDTH.seconds
             }
@@ -70,13 +92,16 @@ class Aerobrakes : AbstractSimulationListener() {
         // PID algorithm
         val error = (TARGET_APOGEE - predictedApogee).meters
 
-        val P = kP * error
-        val I = kI * errorIntegral
+        val p = kP * error
+        val i = kI * errorIntegral
 
         val dT = status.simulationTime - lastTime
         val hasDT = lastTime != 0.0 && dT != 0.0
 
         val derivativeTerm = if (hasDT) {
+            if (lastError == 0.0) {
+                lastError = error
+            }
             val dE = error - lastError
             dE / dT
         } else 0.0
@@ -85,32 +110,36 @@ class Aerobrakes : AbstractSimulationListener() {
             error * dT
         } else 0.0
 
-        val D = kD * derivativeTerm
-
-        motorThrottle = (-(P + I + D)).coerceIn((-1.0)..1.0)
-
-        // Safety code to prevent over-retracting or over-extending the fins
-        val futurePosition = motorPosition + motorThrottle * dT
-        if (futurePosition < 0 || futurePosition > SAFEST_POSITION) {
-            motorThrottle = 0.0
-        }
+        val d = kD * derivativeTerm
 
         motorPosition += motorThrottle * dT
         if (motorPosition < 0 || motorPosition > SAFEST_POSITION) {
-            println("Motor position ($motorPosition) is outside the safe range")
+            System.err.println("Motor position ($motorPosition) is outside the safe range.")
             motorPosition.coerceIn((0.0)..SAFEST_POSITION)
+        }
+
+        motorThrottle = -(p + i + d)
+        motorThrottle = motorThrottle.coerceIn((-1.0)..1.0)
+
+        // Safety code to prevent over-retracting or over-extending the fins
+        val futurePosition = motorPosition + motorThrottle * dT * 1.15
+        if (futurePosition < 0 || futurePosition > SAFEST_POSITION * 0.95 || status.simulationTime < DEPLOYMENT_DELAY.seconds) {
+            motorThrottle = 0.0
         }
 
         lastError = error
         lastTime = status.simulationTime
+
+        if (logFrame) {
+            logFile.println("${status.simulationTime}, ${altitudes.last().meters}, 0, 0")
+        }
+        logFrame = !logFrame
 
         val conditions = FlightConditions(status.configuration)
 
         val stagnationCd = BarrowmanCalculator.calculateStagnationCD(conditions.mach)
 
         val refArea = motorPosition / SAFEST_POSITION * FIN_AREA.metersMeters * 2 // because there are 2 fins
-
-//        val cd = refArea / conditions.refArea
 
         val cd = 1.28 // sourced from Professor Pascale
 
@@ -128,22 +157,22 @@ class Aerobrakes : AbstractSimulationListener() {
         /**
          * Regression will include the last SCAN_WIDTH seconds of data
          */
-        val SCAN_WIDTH = 2.seconds
+        val SCAN_WIDTH = 1.seconds
 
         /**
          * The target apogee of the rocket's deployment
          */
-        val TARGET_APOGEE = 5000.feet
+        val TARGET_APOGEE = 5280.feet
 
         /**
          * The number of seconds the calibration code ran for before it was stopped
          */
-        val CALIBRATION_TIME = 10.seconds
+        private val CALIBRATION_TIME = 5.8.seconds
 
         /**
          * The duty cycle at which the calibration code ran
          */
-        val CALIBRATION_THROTTLE = 0.1
+        private const val CALIBRATION_THROTTLE = 0.1
 
         /**
          * The maximum extension position of the motor, derived from the calibration constants
@@ -156,9 +185,9 @@ class Aerobrakes : AbstractSimulationListener() {
         val FIN_AREA = 6.94.inchesInches
 
         // PID gains
-        const val kP = 0.34
+        const val kP = 2
         const val kI = 0
-        const val kD = 5
+        const val kD = 6
 
         /**
          * Learning rate for gradient descent polynomial regression
