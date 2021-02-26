@@ -31,7 +31,7 @@ class Aerobrakes : AbstractSimulationListener() {
         return a * x.pow(1.5) + b * x + c
     }
 
-    private val logFile = File("${System.getProperty("user.home")}/Documents/noFinsADAS1:.csv").let {
+    private val logFile = File("${System.getProperty("user.home")}/Documents/noFinsADAS1.csv").let {
         it.createNewFile()
         it.printWriter()
     }
@@ -55,7 +55,7 @@ class Aerobrakes : AbstractSimulationListener() {
         val (times, altitudes) = status.flightData.get(FlightDataType.TYPE_TIME)
             .map { it.seconds }
             .zip(status.flightData.get(FlightDataType.TYPE_ALTITUDE)?.map {
-                it.meters + (5 * random() - 2.5).meters
+                it.meters + (10 * random() - 5).meters
             } ?: return forces)
             .takeLastWhile { (T, _) ->
                 T.seconds >= status.simulationTime - SCAN_WIDTH.seconds
@@ -131,7 +131,7 @@ class Aerobrakes : AbstractSimulationListener() {
         lastTime = status.simulationTime
 
         if (logFrame) {
-            logFile.println("${status.simulationTime}, ${altitudes.last().meters}, 0, 0")
+            logFile.println("${status.simulationTime}, ${predictedApogee.feet}")
         }
         logFrame = !logFrame
 
@@ -185,7 +185,7 @@ class Aerobrakes : AbstractSimulationListener() {
         val FIN_AREA = 6.94.inchesInches
 
         // PID gains
-        const val kP = 2
+        const val kP = .38
         const val kI = 0
         const val kD = 6
 
