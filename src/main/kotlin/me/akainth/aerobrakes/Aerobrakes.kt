@@ -44,8 +44,6 @@ class Aerobrakes : AbstractSimulationListener() {
         logFile.close()
     }
 
-    private var logFrame = true
-
     override fun postAerodynamicCalculation(status: SimulationStatus, forces: AerodynamicForces): AerodynamicForces {
         if (status.simulationTime < (DEPLOYMENT_DELAY - SCAN_WIDTH).seconds || status.simulationTime == lastTime) {
             lastTime = status.simulationTime
@@ -69,11 +67,27 @@ class Aerobrakes : AbstractSimulationListener() {
         }
 
         // Min-max normalization for the data points
-        val normTimes = times.map { it / 30.seconds }
         val normAltitudes = altitudes.map { it / 2000.meters }
 
         // Gradient descent
-        val derivativeOfMSE = times.zip(normAltitudes)
+
+        a -= ALPHA * times.zip(normAltitudes)
+            .map { (T, nA) ->
+                val prediction = evaluatePolynomial(T.seconds).meters
+                val normPrediction = prediction / 2000.meters
+
+                (nA - normPrediction) * -T.seconds.pow(1.5)
+            }
+            .sum() / n
+        b -= ALPHA * times.zip(normAltitudes)
+            .map { (T, nA) ->
+                val prediction = evaluatePolynomial(T.seconds).meters
+                val normPrediction = prediction / 2000.meters
+
+                (nA - normPrediction) * -T.seconds
+            }
+            .sum() / n
+        c += ALPHA * times.zip(normAltitudes)
             .map { (T, nA) ->
                 val prediction = evaluatePolynomial(T.seconds).meters
                 val normPrediction = prediction / 2000.meters
@@ -81,10 +95,6 @@ class Aerobrakes : AbstractSimulationListener() {
                 nA - normPrediction
             }
             .sum() / n
-
-        a -= ALPHA * derivativeOfMSE * normTimes.map { T -> -T.pow(1.5) }.sum()
-        b -= ALPHA * derivativeOfMSE * normTimes.map { T -> -T }.sum()
-        c += ALPHA * derivativeOfMSE
 
         val apogeeTime = (-b / 1.5 / a).pow(2)
         val predictedApogee = evaluatePolynomial(apogeeTime).meters
@@ -130,10 +140,7 @@ class Aerobrakes : AbstractSimulationListener() {
         lastError = error
         lastTime = status.simulationTime
 
-        if (logFrame) {
-            logFile.println("${status.simulationTime}, ${predictedApogee.feet}")
-        }
-        logFrame = !logFrame
+        logFile.println("${status.simulationTime}, ${predictedApogee.feet}, ${motorPosition / SAFEST_POSITION}")
 
         val conditions = FlightConditions(status.configuration)
 
@@ -157,7 +164,7 @@ class Aerobrakes : AbstractSimulationListener() {
         /**
          * Regression will include the last SCAN_WIDTH seconds of data
          */
-        val SCAN_WIDTH = 1.seconds
+        val SCAN_WIDTH = 0.5.seconds
 
         /**
          * The target apogee of the rocket's deployment
@@ -185,13 +192,13 @@ class Aerobrakes : AbstractSimulationListener() {
         val FIN_AREA = 6.94.inchesInches
 
         // PID gains
-        const val kP = .38
+        const val kP = 1
         const val kI = 0
         const val kD = 6
 
         /**
          * Learning rate for gradient descent polynomial regression
          */
-        const val ALPHA = 0.05
+        const val ALPHA = 0.7
     }
 }
