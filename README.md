@@ -1,7 +1,5 @@
 # aerobrakes
 
-Aerobrakes for OpenRocket
-
 ---
 
 To use this project, you can download one of the `.zip` files from the GitHub releases section.
@@ -18,4 +16,4 @@ go to the "Simulation Options tab", press "Add Extension", then from the
 `me.akainth.aerobrakes.Aerobrakes`
 
 At this time, the aerobrakes cannot be configured directly from the OpenRocket UI. 
-To do so, you will have to follow the instructions in `CONTRIBUTING.md`
+To do so, you will have to follow the instructions in [`CONTRIBUTING.md`](CONTRIBUTING.md)
