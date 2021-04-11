@@ -1,4 +1,5 @@
 import me.akainth.tape.GenerateDimensionsTask
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "1.4.21"
@@ -7,7 +8,7 @@ plugins {
 }
 
 group = "me.akainth"
-version = "1.0-SNAPSHOT"
+version = "1.0"
 
 repositories {
     mavenCentral()
@@ -16,18 +17,14 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    implementation(files("libs/OpenRocket.jar"))
+    implementation(files("libs/OpenRocket-15.03.jar"))
 }
 
 application {
-    mainModule.set("net.sf.openrocket")
-    mainClass.set("net.sf.openrocket.startup.SwingStartup")
+    mainClass.set("net.sf.openrocket.startup.OpenRocket")
 }
 
-tasks["compileKotlin"].dependsOn(tasks["tape"])
-sourceSets["main"].java.srcDir(tasks.getByName("tape", GenerateDimensionsTask::class).targetDirectory)
-
-tasks.getByName("tape", GenerateDimensionsTask::class) {
+val tapeTask = tasks.getByName("tape", GenerateDimensionsTask::class) {
     length
     time
     speed
@@ -37,3 +34,15 @@ tasks.getByName("tape", GenerateDimensionsTask::class) {
     area
     volume
 }
+
+tasks.withType<KotlinCompile>().configureEach {
+    dependsOn(tapeTask)
+
+    // OpenRocket 15 only works in JRE 1.8
+    targetCompatibility = "1.8"
+    // https://blog.jetbrains.com/kotlin/2021/02/the-jvm-backend-is-in-beta-let-s-make-it-stable-together/
+    kotlinOptions {
+        useIR = true
+    }
+}
+sourceSets.getByName("main").java.srcDir(tapeTask.targetDirectory)
