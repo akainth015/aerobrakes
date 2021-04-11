@@ -1,7 +1,5 @@
 # aerobrakes
 
----
-
 To use this project, you can download one of the `.zip` files from the GitHub releases section.
 
 It requires the following:
