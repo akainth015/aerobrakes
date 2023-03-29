@@ -1,10 +1,7 @@
-import me.akainth.tape.GenerateDimensionsTask
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-    kotlin("jvm") version "1.4.21"
+    kotlin("jvm") version "1.8.10"
     application
-    id("me.akainth.tape") version "1.2.4"
+    id("me.akainth.tape") version "2.1.1"
 }
 
 group = "me.akainth"
@@ -17,15 +14,18 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    implementation(files("libs/OpenRocket-15.03.jar"))
+    implementation("org.jetbrains.kotlinx:multik-core:0.2.1")
+    implementation("org.jetbrains.kotlinx:multik-default:0.2.1")
+
+    implementation(files("libs/OpenRocket-22.02.jar"))
 }
 
 application {
     mainClass.set("net.sf.openrocket.startup.OpenRocket")
 }
 
-val tapeTask = tasks.getByName("tape", GenerateDimensionsTask::class) {
-    length
+tape {
+    length.alias("Altitude")
     time
     speed
     acceleration
@@ -35,14 +35,9 @@ val tapeTask = tasks.getByName("tape", GenerateDimensionsTask::class) {
     volume
 }
 
-tasks.withType<KotlinCompile>().configureEach {
-    dependsOn(tapeTask)
-
-    // OpenRocket 15 only works in JRE 1.8
-    targetCompatibility = "1.8"
-    // https://blog.jetbrains.com/kotlin/2021/02/the-jvm-backend-is-in-beta-let-s-make-it-stable-together/
-    kotlinOptions {
-        useIR = true
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(11))
     }
 }
-sourceSets.getByName("main").java.srcDir(tapeTask.targetDirectory)
+sourceSets.getByName("main").java.srcDir(tape.targetDirectory)
